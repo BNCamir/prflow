@@ -5,7 +5,7 @@
  * Required env:
  *   CRON_SECRET - same as Authorization: Bearer <CRON_SECRET>
  *   SPROUTGIGS_USER_ID, SPROUTGIGS_API_SECRET
- *   REDDIT_JOB_JSON - JSON for post-job (title, zone_id, category_id, instructions, num_tasks, task_value, proofs optional)
+ *   REDDIT_JOB_JSON or REDDIT_JOB_CONFIG - JSON for Reddit post-job
  *   QUORA_JOB_JSON - same for Quora
  *
  * Optional: DRY_RUN=1 to only log, don't post
@@ -60,11 +60,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "SPROUTGIGS_USER_ID and SPROUTGIGS_API_SECRET required" }, { status: 500 });
   }
 
-  const redditConfig = parseJobJson("REDDIT", process.env.REDDIT_JOB_JSON);
+  const redditRaw =
+    process.env.REDDIT_JOB_JSON?.trim() ||
+    process.env.REDDIT_JOB_CONFIG?.trim();
+  const redditConfig = parseJobJson("REDDIT", redditRaw);
   const quoraConfig = parseJobJson("QUORA", process.env.QUORA_JOB_JSON);
   if (!redditConfig && !quoraConfig) {
     return NextResponse.json({
-      error: "Set REDDIT_JOB_JSON and/or QUORA_JOB_JSON (JSON for each job)",
+      error: "Set REDDIT_JOB_JSON or REDDIT_JOB_CONFIG, and/or QUORA_JOB_JSON (JSON for each job)",
       example: { title: "My Job", zone_id: "int", category_id: "0501", instructions: ["Step 1"], num_tasks: 25, task_value: 0.10 },
     }, { status: 400 });
   }
@@ -112,6 +115,7 @@ export async function POST(request: Request) {
     results,
     configLoaded: { reddit: !!redditConfig, quora: !!quoraConfig },
     redditEnvLength: process.env.REDDIT_JOB_JSON?.length ?? 0,
+    redditAltEnvLength: process.env.REDDIT_JOB_CONFIG?.length ?? 0,
     runningJobTitles,
   });
 }
