@@ -4,7 +4,7 @@ export interface DemandInput {
   manualDesiredJobs?: number;
   demandSourceResponse?: { jobsNeeded?: number };
   alreadyLaunchedToday: number;
-  /** Running jobs on SproutGigs – we only start new jobs when this is 0 (job complete) */
+  /** Running jobs on SproutGigs – we launch enough to keep this at daily_target_jobs (e.g. always 2 running) */
   currentActiveCount: number;
   /** Spendable balance in USD (from get-balances). Cap launches by what we can afford. */
   spendableBalance?: number;
@@ -39,20 +39,14 @@ export function evaluateDemand(config: ConfigRow, input: DemandInput): DemandRes
     return { jobsToLaunch: 0, reason: "Outside operating hours" };
   }
 
-  // Only start new job(s) when current job is complete (no running jobs)
-  if (input.currentActiveCount > 0) {
-    return {
-      jobsToLaunch: 0,
-      reason: "Job still running – wait until complete before starting a new one",
-    };
-  }
-
   const remainingBudget = Math.max(0, max_jobs_per_day - input.alreadyLaunchedToday);
   if (remainingBudget === 0) {
     return { jobsToLaunch: 0, reason: "Daily cap reached" };
   }
 
-  let desired = input.manualDesiredJobs ?? input.demandSourceResponse?.jobsNeeded ?? daily_target_jobs;
+  // Keep daily_target_jobs running: if 2 target and 0 running → launch 2; if 1 running → launch 1; if 2 running → 0
+  const targetRunning = input.manualDesiredJobs ?? input.demandSourceResponse?.jobsNeeded ?? daily_target_jobs;
+  let desired = Math.max(0, targetRunning - input.currentActiveCount);
   desired = Math.min(desired, remainingBudget);
   desired = Math.max(min_jobs_per_run, Math.min(max_jobs_per_run, desired));
 
@@ -72,6 +66,9 @@ export function evaluateDemand(config: ConfigRow, input: DemandInput): DemandRes
   const jobsToLaunch = Math.min(desired, remainingBudget);
   return {
     jobsToLaunch,
-    reason: jobsToLaunch > 0 ? "Demand evaluated – job complete, starting new" : "No jobs needed",
+    reason:
+      jobsToLaunch > 0
+        ? `Maintain ${targetRunning} running – ${input.currentActiveCount} active, launching ${jobsToLaunch}`
+        : "No jobs needed",
   };
 }
