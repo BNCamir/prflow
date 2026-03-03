@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "secrets": [],
+  "steps": {
+    "build": {
+      "secrets": []
+    }
+  }
+}

@@ -2,6 +2,15 @@
 
 You can run **only** the cron that keeps your Reddit and Quora jobs running. No login, no database, no dashboard.
 
+## Railway build fix (secret not found)
+
+If the build fails with `secret REDDIT_JOB_JSON: not found`:
+
+- Add **REDDIT_JOB_JSON** and **QUORA_JOB_JSON** as **Variables** (not Secrets) on the **same service** that builds.
+- Set them **before** triggering a deploy so they exist during build.
+- If your project only allows "Secrets", add a **Variable** (non-secret) with the same name and value; Railway may require variables at build time.
+- To get the first build to pass before pasting real job JSON, you can set both to `{}` then update to real values after deploy.
+
 ## 1. Env vars on Railway
 
 In your Railway app → **Variables**, set:
