@@ -76,6 +76,7 @@ export async function POST(request: Request) {
   const runningTitles = running.map((j) => j.title.toLowerCase());
 
   const results: { job: string; running: boolean; action: string; jobId?: string; error?: string }[] = [];
+  const runningJobTitles = running.map((j) => j.title);
 
   const ensureJob = async (name: string, config: SproutGigsJobConfig) => {
     const titleLower = config.title.toLowerCase();
@@ -104,5 +105,7 @@ export async function POST(request: Request) {
     dryRun,
     results,
     configLoaded: { reddit: !!redditConfig, quora: !!quoraConfig },
+    redditEnvLength: process.env.REDDIT_JOB_JSON?.length ?? 0,
+    runningJobTitles,
   });
 }
