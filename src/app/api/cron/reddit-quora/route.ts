@@ -99,5 +99,10 @@ export async function POST(request: Request) {
   if (redditConfig) await ensureJob("Reddit", redditConfig);
   if (quoraConfig) await ensureJob("Quora", quoraConfig);
 
-  return NextResponse.json({ ok: true, dryRun, results });
+  return NextResponse.json({
+    ok: true,
+    dryRun,
+    results,
+    configLoaded: { reddit: !!redditConfig, quora: !!quoraConfig },
+  });
 }
