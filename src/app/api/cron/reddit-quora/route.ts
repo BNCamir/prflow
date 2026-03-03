@@ -80,7 +80,13 @@ export async function POST(request: Request) {
 
   const ensureJob = async (name: string, config: SproutGigsJobConfig) => {
     const titleLower = config.title.toLowerCase();
-    const isRunning = runningTitles.some((t) => t.includes(titleLower) || titleLower.includes(t));
+    const keyword = name.toLowerCase();
+    const isRunning = runningTitles.some(
+      (t) =>
+        t.includes(titleLower) ||
+        titleLower.includes(t) ||
+        t.includes(keyword)
+    );
     if (isRunning) {
       results.push({ job: name, running: true, action: "skip" });
       return;
