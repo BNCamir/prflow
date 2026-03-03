@@ -17,6 +17,14 @@ import type { SproutGigsJobConfig } from "@/lib/sproutgigs/types";
 
 export const maxDuration = 60;
 
+/** GET: show that the endpoint exists (cron must use POST with Bearer token) */
+export async function GET() {
+  return NextResponse.json({
+    message: "Cron endpoint. Use POST with header: Authorization: Bearer <CRON_SECRET>",
+    docs: "See CRON-ONLY.md",
+  });
+}
+
 function parseJobJson(name: string, raw: string | undefined): SproutGigsJobConfig | null {
   if (!raw?.trim()) return null;
   try {
