@@ -1,7 +1,8 @@
 import NextAuth from "next-auth";
+import type { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-const handler = NextAuth({
+const options: AuthOptions & { trustHost?: boolean } = {
   trustHost: true,
   providers: [
     CredentialsProvider({
@@ -35,6 +36,8 @@ const handler = NextAuth({
       return session;
     },
   },
-});
+};
+
+const handler = NextAuth(options);
 
 export { handler as GET, handler as POST };
