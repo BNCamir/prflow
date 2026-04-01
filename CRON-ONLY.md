@@ -20,7 +20,8 @@ In your Railway app → **Variables**, set:
 | **CRON_SECRET** | Any random string (for the cron request) |
 | **SPROUTGIGS_USER_ID** | Your SproutGigs API user ID |
 | **SPROUTGIGS_API_SECRET** | Your SproutGigs API secret |
-| **REDDIT_JOB_JSON** | JSON for the Reddit job (see below) |
+| **REDDIT_JOB_CONFIG** | JSON for the Reddit job (recommended on Railway; see below) |
+| **REDDIT_JOB_JSON** | Same as above if you prefer this name (use one or the other) |
 | **QUORA_JOB_JSON** | JSON for the Quora job (see below) |
 
 Optional: **DRY_RUN** = `1` to only check and log, don’t post jobs.
@@ -48,7 +49,22 @@ Each of `REDDIT_JOB_JSON` and `QUORA_JOB_JSON` is one JSON object. Example:
 - **task_value** – USD per task.
 - Optional: **proofs** – `[{"type":"screenshot","description":"Screenshot"}]`, **excluded_countries** – `["pk","bd"]`.
 
-Paste as **one line** in Railway (no newlines). Example value for **REDDIT_JOB_JSON**:
+Paste as **one line** in Railway (no newlines).
+
+### Reddit comment helpers (both in the flow)
+
+Workers can use **either** helper:
+
+1. [reddit-comment-helper2.vercel.app](https://reddit-comment-helper2.vercel.app/)
+2. [v0-reddit-comment-helper-7i.vercel.app](https://v0-reddit-comment-helper-7i.vercel.app/) (BoxNCase Reddit Comment Helper — enter Reddit username)
+
+Put both links in your `instructions` array so the job text matches your flow. Example **REDDIT_JOB_CONFIG** (one line for Railway):
+
+```
+{"title":"Reddit Comment","zone_id":"int","category_id":"0501","instructions":["Use either https://reddit-comment-helper2.vercel.app/ or https://v0-reddit-comment-helper-7i.vercel.app/ — on the second, enter your Reddit username when asked","Use an account that has good reputation and age","Pick one of the 6 links, then choose a Reddit thread to comment on with the helper","Copy the Reddit link you chose into the helper and generate a response","Post the response on Reddit","Submit the VCODE on SproutGigs to complete the task"],"proofs":[{"type":"text","description":"Link to your Reddit comment"},{"type":"text","description":"VCODE provided from the verification tool"}],"num_tasks":25,"task_value":0.10}
+```
+
+Shorter example for **REDDIT_JOB_JSON** / **REDDIT_JOB_CONFIG**:
 
 ```
 {"title":"Reddit task","zone_id":"int","category_id":"0501","instructions":["Go to the link","Complete the task","Submit screenshot"],"num_tasks":25,"task_value":0.10}

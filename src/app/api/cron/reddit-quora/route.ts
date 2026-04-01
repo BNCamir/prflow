@@ -5,7 +5,7 @@
  * Required env:
  *   CRON_SECRET - same as Authorization: Bearer <CRON_SECRET>
  *   SPROUTGIGS_USER_ID, SPROUTGIGS_API_SECRET
- *   REDDIT_JOB_JSON or REDDIT_JOB_CONFIG - JSON for Reddit post-job
+ *   REDDIT_JOB_JSON or REDDIT_JOB_CONFIG - JSON for Reddit post-job (instructions often list both helpers: reddit-comment-helper2.vercel.app and v0-reddit-comment-helper-7i.vercel.app)
  *   QUORA_JOB_JSON - same for Quora
  *
  * Optional: DRY_RUN=1 to only log, don't post
