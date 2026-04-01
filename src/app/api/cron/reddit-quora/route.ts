@@ -5,8 +5,9 @@
  * Required env:
  *   CRON_SECRET - same as Authorization: Bearer <CRON_SECRET>
  *   SPROUTGIGS_USER_ID, SPROUTGIGS_API_SECRET
- *   REDDIT_JOB_JSON or REDDIT_JOB_CONFIG - JSON for Reddit post-job (instructions often list both helpers: general helper2 + v0 helper tuned for Sysco/Restaurant Depot — see CRON-ONLY.md)
- *   QUORA_JOB_JSON - same for Quora
+ *   REDDIT_JOB_JSON or REDDIT_JOB_CONFIG - first Reddit job (e.g. general helper — own title on SproutGigs)
+ *   REDDIT_JOB_SYSCO_JSON or REDDIT_JOB_SYSCO_CONFIG - second Reddit job (e.g. Sysco / Restaurant Depot helper — separate job post)
+ *   QUORA_JOB_JSON - Quora job
  *
  * Optional: DRY_RUN=1 to only log, don't post
  */
@@ -63,11 +64,16 @@ export async function POST(request: Request) {
   const redditRaw =
     process.env.REDDIT_JOB_JSON?.trim() ||
     process.env.REDDIT_JOB_CONFIG?.trim();
+  const redditSyscoRaw =
+    process.env.REDDIT_JOB_SYSCO_JSON?.trim() ||
+    process.env.REDDIT_JOB_SYSCO_CONFIG?.trim();
   const redditConfig = parseJobJson("REDDIT", redditRaw);
+  const redditSyscoConfig = parseJobJson("REDDIT_SYSCO", redditSyscoRaw);
   const quoraConfig = parseJobJson("QUORA", process.env.QUORA_JOB_JSON);
-  if (!redditConfig && !quoraConfig) {
+  if (!redditConfig && !redditSyscoConfig && !quoraConfig) {
     return NextResponse.json({
-      error: "Set REDDIT_JOB_JSON or REDDIT_JOB_CONFIG, and/or QUORA_JOB_JSON (JSON for each job)",
+      error:
+        "Set at least one of: REDDIT_JOB_CONFIG, REDDIT_JOB_SYSCO_CONFIG, QUORA_JOB_JSON (each is a separate SproutGigs job)",
       example: { title: "My Job", zone_id: "int", category_id: "0501", instructions: ["Step 1"], num_tasks: 25, task_value: 0.10 },
     }, { status: 400 });
   }
@@ -81,15 +87,20 @@ export async function POST(request: Request) {
   const results: { job: string; running: boolean; action: string; jobId?: string; error?: string }[] = [];
   const runningJobTitles = running.map((j) => j.title);
 
-  const ensureJob = async (name: string, config: SproutGigsJobConfig) => {
+  /** broadKeywordMatch: Quora uses "quora" in title (e.g. "Quora: Comment"). Reddit jobs use title-only so two Reddit posts do not collide. */
+  const ensureJob = async (
+    name: string,
+    config: SproutGigsJobConfig,
+    opts?: { broadKeywordMatch?: boolean }
+  ) => {
     const titleLower = config.title.toLowerCase();
     const keyword = name.toLowerCase();
-    const isRunning = runningTitles.some(
-      (t) =>
-        t.includes(titleLower) ||
-        titleLower.includes(t) ||
-        t.includes(keyword)
-    );
+    const broad = opts?.broadKeywordMatch ?? false;
+    const isRunning = runningTitles.some((t) => {
+      if (t.includes(titleLower) || titleLower.includes(t)) return true;
+      if (broad && t.includes(keyword)) return true;
+      return false;
+    });
     if (isRunning) {
       results.push({ job: name, running: true, action: "skip" });
       return;
@@ -107,15 +118,21 @@ export async function POST(request: Request) {
   };
 
   if (redditConfig) await ensureJob("Reddit", redditConfig);
-  if (quoraConfig) await ensureJob("Quora", quoraConfig);
+  if (redditSyscoConfig) await ensureJob("Reddit (Sysco/RD)", redditSyscoConfig);
+  if (quoraConfig) await ensureJob("Quora", quoraConfig, { broadKeywordMatch: true });
 
   return NextResponse.json({
     ok: true,
     dryRun,
     results,
-    configLoaded: { reddit: !!redditConfig, quora: !!quoraConfig },
+    configLoaded: {
+      reddit: !!redditConfig,
+      redditSysco: !!redditSyscoConfig,
+      quora: !!quoraConfig,
+    },
     redditEnvLength: process.env.REDDIT_JOB_JSON?.length ?? 0,
     redditAltEnvLength: process.env.REDDIT_JOB_CONFIG?.length ?? 0,
+    redditSyscoEnvLength: redditSyscoRaw?.length ?? 0,
     runningJobTitles,
   });
 }

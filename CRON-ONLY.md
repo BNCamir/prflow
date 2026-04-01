@@ -20,15 +20,17 @@ In your Railway app → **Variables**, set:
 | **CRON_SECRET** | Any random string (for the cron request) |
 | **SPROUTGIGS_USER_ID** | Your SproutGigs API user ID |
 | **SPROUTGIGS_API_SECRET** | Your SproutGigs API secret |
-| **REDDIT_JOB_CONFIG** | JSON for the Reddit job (recommended on Railway; see below) |
-| **REDDIT_JOB_JSON** | Same as above if you prefer this name (use one or the other) |
+| **REDDIT_JOB_CONFIG** | JSON for **Reddit job 1** (e.g. general helper) — separate SproutGigs post |
+| **REDDIT_JOB_JSON** | Same as above (use one or the other) |
+| **REDDIT_JOB_SYSCO_CONFIG** | JSON for **Reddit job 2** (Sysco / Restaurant Depot helper) — **separate** SproutGigs post |
+| **REDDIT_JOB_SYSCO_JSON** | Same as above (use one or the other) |
 | **QUORA_JOB_JSON** | JSON for the Quora job (see below) |
 
 Optional: **DRY_RUN** = `1` to only check and log, don’t post jobs.
 
 ### Job JSON shape
 
-Each of `REDDIT_JOB_JSON` and `QUORA_JOB_JSON` is one JSON object. Example:
+Each env var is **one** JSON object = **one** SproutGigs job. You can run up to **two** Reddit jobs plus Quora. Each Reddit job needs a **different `title`** so the cron can tell them apart. Example:
 
 ```json
 {
@@ -41,7 +43,7 @@ Each of `REDDIT_JOB_JSON` and `QUORA_JOB_JSON` is one JSON object. Example:
 }
 ```
 
-- **title** – Must match how you recognize the job (we check “is a job with this title running?”).
+- **title** – Must be **unique per job** on SproutGigs (cron matches running jobs by title; two Reddit jobs must not share the same title).
 - **zone_id** – e.g. `int`.
 - **category_id** – From SproutGigs categories.
 - **instructions** – Array of strings.
@@ -51,26 +53,27 @@ Each of `REDDIT_JOB_JSON` and `QUORA_JOB_JSON` is one JSON object. Example:
 
 Paste as **one line** in Railway (no newlines).
 
-### Reddit comment helpers (both in the job post)
+### Two Reddit jobs (not one job with two links)
 
-You **post both** links in the job instructions so workers can pick the right tool:
+These are **two separate SproutGigs jobs**, each with its own workers and completions:
 
-1. **[reddit-comment-helper2.vercel.app](https://reddit-comment-helper2.vercel.app/)** — general BoxNCase Reddit comment flow.
-2. **[v0-reddit-comment-helper-7i.vercel.app](https://v0-reddit-comment-helper-7i.vercel.app/)** — BoxNCase helper where workers enter their Reddit username; the prompts are **updated for messaging around Sysco’s acquisition of Restaurant Depot** (use this when the thread fits that narrative).
+1. **Job 1 — `REDDIT_JOB_CONFIG`** — instructions point only to **[reddit-comment-helper2.vercel.app](https://reddit-comment-helper2.vercel.app/)** (general BoxNCase flow). Use a distinct **title**, e.g. `Reddit Comment`.
 
-Workers may use either helper depending on context; both stay in the instructions. Example **REDDIT_JOB_CONFIG** (one line for Railway):
+2. **Job 2 — `REDDIT_JOB_SYSCO_CONFIG`** — instructions point only to **[v0-reddit-comment-helper-7i.vercel.app](https://v0-reddit-comment-helper-7i.vercel.app/)** (enter Reddit username; messaging tuned for **Sysco’s acquisition of Restaurant Depot**). Use a **different title**, e.g. `Reddit Sysco Restaurant Depot`.
 
-```
-{"title":"Reddit Comment","zone_id":"int","category_id":"0501","instructions":["Two helpers — post both in your workflow: (1) https://reddit-comment-helper2.vercel.app/ for general BoxNCase comments. (2) https://v0-reddit-comment-helper-7i.vercel.app/ — enter your Reddit username; this version is tailored for Sysco’s acquisition of Restaurant Depot. Use whichever fits the thread.","Use an account that has good reputation and age","Pick one of the 6 links, then choose a Reddit thread to comment on with the helper you chose","Copy the Reddit link into the helper and generate a response","Post the response on Reddit","Submit the VCODE on SproutGigs to complete the task"],"proofs":[{"type":"text","description":"Link to your Reddit comment"},{"type":"text","description":"VCODE provided from the verification tool"}],"num_tasks":25,"task_value":0.10}
-```
-
-Shorter example for **REDDIT_JOB_JSON** / **REDDIT_JOB_CONFIG**:
+Example **REDDIT_JOB_CONFIG** (one line):
 
 ```
-{"title":"Reddit task","zone_id":"int","category_id":"0501","instructions":["Go to the link","Complete the task","Submit screenshot"],"num_tasks":25,"task_value":0.10}
+{"title":"Reddit Comment","zone_id":"int","category_id":"0501","instructions":["Go to https://reddit-comment-helper2.vercel.app/ and follow the instructions on the site","Use an account that has good reputation and age","Pick one of the 6 links, then choose a Reddit thread to comment on","Copy the Reddit link into the helper, generate a response, post it","Submit the VCODE on SproutGigs to complete the task"],"proofs":[{"type":"text","description":"Link to your Reddit comment"},{"type":"text","description":"VCODE from the verification tool"}],"num_tasks":25,"task_value":0.10}
 ```
 
-Do the same for **QUORA_JOB_JSON** with the Quora title and settings.
+Example **REDDIT_JOB_SYSCO_CONFIG** (one line):
+
+```
+{"title":"Reddit Sysco Restaurant Depot","zone_id":"int","category_id":"0501","instructions":["Go to https://v0-reddit-comment-helper-7i.vercel.app/ — enter your Reddit username when asked","This flow is for comments aligned with Sysco’s acquisition of Restaurant Depot","Use an account with good reputation and age","Follow the site’s steps, post on Reddit, then submit proof and VCODE on SproutGigs"],"proofs":[{"type":"text","description":"Link to your Reddit comment"},{"type":"text","description":"VCODE from the verification tool"}],"num_tasks":25,"task_value":0.10}
+```
+
+Do the same for **QUORA_JOB_JSON** with your Quora title and settings.
 
 ## 2. Cron job
 
@@ -84,7 +87,7 @@ Use [cron-job.org](https://cron-job.org) (or any cron):
   - Value: `Bearer YOUR_CRON_SECRET`  
   (same as **CRON_SECRET** in Railway)
 
-No dashboard needed: the cron calls this URL; the app checks SproutGigs and posts Reddit/Quora jobs if they’re not running.
+No dashboard needed: the cron calls this URL; the app checks SproutGigs and posts each configured job (Reddit 1, Reddit 2, Quora) only if that job’s **title** is not already running.
 
 ## 3. Optional: turn off the rest
 
