@@ -51,17 +51,17 @@ Each of `REDDIT_JOB_JSON` and `QUORA_JOB_JSON` is one JSON object. Example:
 
 Paste as **one line** in Railway (no newlines).
 
-### Reddit comment helpers (both in the flow)
+### Reddit comment helpers (both in the job post)
 
-Workers can use **either** helper:
+You **post both** links in the job instructions so workers can pick the right tool:
 
-1. [reddit-comment-helper2.vercel.app](https://reddit-comment-helper2.vercel.app/)
-2. [v0-reddit-comment-helper-7i.vercel.app](https://v0-reddit-comment-helper-7i.vercel.app/) (BoxNCase Reddit Comment Helper — enter Reddit username)
+1. **[reddit-comment-helper2.vercel.app](https://reddit-comment-helper2.vercel.app/)** — general BoxNCase Reddit comment flow.
+2. **[v0-reddit-comment-helper-7i.vercel.app](https://v0-reddit-comment-helper-7i.vercel.app/)** — BoxNCase helper where workers enter their Reddit username; the prompts are **updated for messaging around Sysco’s acquisition of Restaurant Depot** (use this when the thread fits that narrative).
 
-Put both links in your `instructions` array so the job text matches your flow. Example **REDDIT_JOB_CONFIG** (one line for Railway):
+Workers may use either helper depending on context; both stay in the instructions. Example **REDDIT_JOB_CONFIG** (one line for Railway):
 
 ```
-{"title":"Reddit Comment","zone_id":"int","category_id":"0501","instructions":["Use either https://reddit-comment-helper2.vercel.app/ or https://v0-reddit-comment-helper-7i.vercel.app/ — on the second, enter your Reddit username when asked","Use an account that has good reputation and age","Pick one of the 6 links, then choose a Reddit thread to comment on with the helper","Copy the Reddit link you chose into the helper and generate a response","Post the response on Reddit","Submit the VCODE on SproutGigs to complete the task"],"proofs":[{"type":"text","description":"Link to your Reddit comment"},{"type":"text","description":"VCODE provided from the verification tool"}],"num_tasks":25,"task_value":0.10}
+{"title":"Reddit Comment","zone_id":"int","category_id":"0501","instructions":["Two helpers — post both in your workflow: (1) https://reddit-comment-helper2.vercel.app/ for general BoxNCase comments. (2) https://v0-reddit-comment-helper-7i.vercel.app/ — enter your Reddit username; this version is tailored for Sysco’s acquisition of Restaurant Depot. Use whichever fits the thread.","Use an account that has good reputation and age","Pick one of the 6 links, then choose a Reddit thread to comment on with the helper you chose","Copy the Reddit link into the helper and generate a response","Post the response on Reddit","Submit the VCODE on SproutGigs to complete the task"],"proofs":[{"type":"text","description":"Link to your Reddit comment"},{"type":"text","description":"VCODE provided from the verification tool"}],"num_tasks":25,"task_value":0.10}
 ```
 
 Shorter example for **REDDIT_JOB_JSON** / **REDDIT_JOB_CONFIG**:
