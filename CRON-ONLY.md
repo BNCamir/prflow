@@ -28,6 +28,20 @@ In your Railway app → **Variables**, set:
 
 Optional: **DRY_RUN** = `1` to only check and log, don’t post jobs.
 
+### Where to get SproutGigs API credentials (for Railway)
+
+These are **not** the same as your job JSON. The API vars let the app talk to SproutGigs; the JSON describes each job to post.
+
+1. Log in to **[SproutGigs](https://sproutgigs.com)**.
+2. Open **Account** → **Account Settings** (or your profile / settings area).
+3. Open the **SETTINGS** tab (SproutGigs documents API secrets there).
+4. You should see:
+   - **User ID** (or similar) → paste into Railway as **`SPROUTGIGS_USER_ID`**. It is usually **not** your email; it may look like a short hex or alphanumeric id (e.g. `2d8b73ff`).
+   - **API secret** (create or reset if needed) → paste into Railway as **`SPROUTGIGS_API_SECRET`**. If the UI only shows something like an “API key” or “secret key,” that is usually this value.
+5. Save variables on Railway and **redeploy** the service so the app picks them up.
+
+Official reference: [SproutGigs API documentation](https://sproutgigs.com/api/documentation.php) (authentication section describes `user_id` + `api_secret` and Basic auth).
+
 ### Job JSON shape
 
 Each env var is **one** JSON object = **one** SproutGigs job. You can run up to **two** Reddit jobs plus Quora. Each Reddit job needs a **different `title`** so the cron can tell them apart. Example:
