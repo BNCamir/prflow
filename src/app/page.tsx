@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RefreshCw, Play, Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+
+type CronSlot = "reddit" | "redditSysco" | "quora";
 
 interface PrFlowConfiguredRow {
   slot: string;
@@ -71,6 +74,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [executing, setExecuting] = useState(false);
+  const [selectedSlots, setSelectedSlots] = useState<Set<CronSlot>>(new Set());
+  const [runFeedback, setRunFeedback] = useState<{ type: "ok" | "error"; message: string } | null>(null);
+  const slotsInitDone = useRef(false);
 
   async function fetchDashboard() {
     try {
@@ -89,19 +95,67 @@ export default function DashboardPage() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    const cfg = data?.prFlow.configured ?? [];
+    if (!cfg.length || slotsInitDone.current) return;
+    slotsInitDone.current = true;
+    setSelectedSlots(new Set(cfg.map((c) => c.slot as CronSlot)));
+  }, [data]);
+
+  function toggleSlot(slot: CronSlot) {
+    setSelectedSlots((prev) => {
+      const n = new Set(prev);
+      if (n.has(slot)) n.delete(slot);
+      else n.add(slot);
+      return n;
+    });
+  }
+
   async function runNow() {
+    if (!data) return;
+    setRunFeedback(null);
+    const slots = Array.from(selectedSlots);
+    if (data.prFlow.configured.length > 0 && slots.length === 0) {
+      setRunFeedback({ type: "error", message: "Select at least one job template to run." });
+      return;
+    }
+
     setRunning(true);
     try {
-      const res = await fetch("/api/runs/now", { method: "POST" });
-      const json = await res.json();
+      const res = await fetch("/api/runs/now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data.prFlow.configured.length > 0 ? { slots } : {}),
+      });
+      const json = await res.json().catch(() => ({}));
+
       if (res.ok && json.mode === "env_cron") {
+        const parts = (json.results as { job: string; action: string; error?: string }[] | undefined)?.map(
+          (r) => `${r.job}: ${r.action}${r.error ? ` (${r.error})` : ""}`
+        );
+        setRunFeedback({
+          type: "ok",
+          message: parts?.length ? parts.join(" · ") : "Check completed.",
+        });
         await fetchDashboard();
         return;
       }
+
       if (res.ok && json.runId && json.mode === "legacy") {
-        await fetch("/api/runs/" + json.runId + "/execute", { method: "POST" });
+        setRunFeedback({ type: "ok", message: "Legacy run started; processing tasks…" });
+        await fetch("/api/runs/" + json.runId + "/execute", {
+          method: "POST",
+          credentials: "include",
+        });
         await fetchDashboard();
+        return;
       }
+
+      setRunFeedback({
+        type: "error",
+        message: typeof json.error === "string" ? json.error : res.statusText || "Run now failed",
+      });
     } finally {
       setRunning(false);
     }
@@ -154,12 +208,59 @@ export default function DashboardPage() {
               Process tasks
             </Button>
           )}
-          <Button size="sm" onClick={runNow} disabled={running}>
+          <Button
+            size="sm"
+            onClick={runNow}
+            disabled={
+              running || (data.prFlow.configured.length > 0 && selectedSlots.size === 0)
+            }
+          >
             {running ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}
             Run now
           </Button>
         </div>
       </div>
+
+      {runFeedback && (
+        <div
+          role="status"
+          className={
+            runFeedback.type === "error"
+              ? "text-sm p-3 rounded-md border border-destructive/60 bg-destructive/5 text-destructive"
+              : "text-sm p-3 rounded-md border border-emerald-600/40 bg-emerald-500/5 text-emerald-800 dark:text-emerald-200"
+          }
+        >
+          {runFeedback.message}
+        </div>
+      )}
+
+      {data.prFlow.configured.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Templates to run</CardTitle>
+            <CardDescription>
+              Run now only checks or posts the templates you select (same as env cron, scoped by slot).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-6">
+            {data.prFlow.configured.map((row) => (
+              <div key={row.slot} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id={`slot-${row.slot}`}
+                  className="h-4 w-4 rounded border border-input"
+                  checked={selectedSlots.has(row.slot as CronSlot)}
+                  onChange={() => toggleSlot(row.slot as CronSlot)}
+                />
+                <Label htmlFor={`slot-${row.slot}`} className="font-normal cursor-pointer leading-snug">
+                  <span className="font-medium">{row.label}</span>
+                  <span className="block text-muted-foreground text-xs max-w-xs truncate">{row.title}</span>
+                </Label>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {showPr && (
         <>

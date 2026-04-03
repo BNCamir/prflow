@@ -1,19 +1,10 @@
 /**
  * Minimal cron: keep Reddit and Quora jobs running.
- * No dashboard, no DB. Set env vars and point a cron at POST /api/cron/reddit-quora
- *
- * Required env:
- *   CRON_SECRET - same as Authorization: Bearer <CRON_SECRET>
- *   SPROUTGIGS_USER_ID, SPROUTGIGS_API_SECRET
- *   REDDIT_JOB_JSON or REDDIT_JOB_CONFIG, REDDIT_JOB_SYSCO_*, QUORA_JOB_JSON
- *
- * Optional: DRY_RUN=1 to only log, don't post
- *
- * Same engine as dashboard "Run now" when env job configs exist (see /api/runs/now).
+ * Optional JSON body: { "slots": ["reddit", "redditSysco", "quora"] } — omit or empty = all configured templates.
  */
 
 import { NextResponse } from "next/server";
-import { runRedditQuoraCron } from "@/lib/cron-reddit-quora-engine";
+import { normalizeSlots, runRedditQuoraCron } from "@/lib/cron-reddit-quora-engine";
 
 export const maxDuration = 60;
 
@@ -21,7 +12,19 @@ export async function GET() {
   return NextResponse.json({
     message: "Cron endpoint. Use POST with header: Authorization: Bearer <CRON_SECRET>",
     docs: "See CRON-ONLY.md",
+    optionalBody: { slots: ["reddit", "redditSysco", "quora"] },
   });
+}
+
+async function readSlots(request: Request) {
+  try {
+    const ct = request.headers.get("content-type") ?? "";
+    if (!ct.includes("application/json")) return undefined;
+    const body = (await request.json()) as { slots?: unknown };
+    return normalizeSlots(body?.slots);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function POST(request: Request) {
@@ -31,7 +34,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await runRedditQuoraCron();
+  const slots = await readSlots(request);
+  const result = await runRedditQuoraCron(slots?.length ? { slots } : undefined);
   if (!result.ok) {
     return NextResponse.json(result.data, { status: result.status });
   }

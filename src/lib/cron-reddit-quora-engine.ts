@@ -46,11 +46,14 @@ export function titleMatchesConfig(runningTitleLower: string, configTitleLower: 
   return false;
 }
 
+export type CronSlot = "reddit" | "redditSysco" | "quora";
+
 export type RedditQuoraCronPayload = {
   ok: true;
   dryRun: boolean;
   results: { job: string; running: boolean; action: string; jobId?: string; error?: string }[];
   configLoaded: { reddit: boolean; redditSysco: boolean; quora: boolean };
+  slotsRun: CronSlot[];
   redditEnvLength: number;
   redditAltEnvLength: number;
   redditSyscoEnvLength: number;
@@ -61,18 +64,42 @@ export type RedditQuoraCronPayload = {
 export type RedditQuoraCronError = {
   error: string;
   example?: Record<string, unknown>;
+  /** If true, /api/runs/now may fall back to the legacy DB run flow */
+  fallbackToLegacy?: boolean;
+};
+
+const ALLOWED_SLOTS = new Set<CronSlot>(["reddit", "redditSysco", "quora"]);
+
+export function normalizeSlots(raw: unknown): CronSlot[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out = raw.filter((s): s is CronSlot => typeof s === "string" && ALLOWED_SLOTS.has(s as CronSlot));
+  return out.length ? out : undefined;
+}
+
+export type RunRedditQuoraCronOptions = {
+  /** If set, only these templates are evaluated (must exist in env). If omitted, all configured templates run. */
+  slots?: CronSlot[];
 };
 
 /**
  * Env-based SproutGigs check + launch (same logic as POST /api/cron/reddit-quora without Bearer auth).
  */
-export async function runRedditQuoraCron(): Promise<
+export async function runRedditQuoraCron(
+  options?: RunRedditQuoraCronOptions
+): Promise<
   { ok: true; data: RedditQuoraCronPayload } | { ok: false; status: number; data: RedditQuoraCronError }
 > {
   const userId = process.env.SPROUTGIGS_USER_ID;
   const apiSecret = process.env.SPROUTGIGS_API_SECRET;
   if (!userId || !apiSecret) {
-    return { ok: false, status: 500, data: { error: "SPROUTGIGS_USER_ID and SPROUTGIGS_API_SECRET required" } };
+    return {
+      ok: false,
+      status: 500,
+      data: {
+        error: "SPROUTGIGS_USER_ID and SPROUTGIGS_API_SECRET required",
+        fallbackToLegacy: true,
+      },
+    };
   }
 
   const redditRaw =
@@ -92,8 +119,36 @@ export async function runRedditQuoraCron(): Promise<
         error:
           "Set at least one of: REDDIT_JOB_CONFIG, REDDIT_JOB_SYSCO_CONFIG, QUORA_JOB_JSON (each is a separate SproutGigs job)",
         example: { title: "My Job", zone_id: "int", category_id: "0501", instructions: ["Step 1"], num_tasks: 25, task_value: 0.1 },
+        fallbackToLegacy: true,
       },
     };
+  }
+
+  const slotsFilter = options?.slots?.length ? new Set(options.slots) : null;
+  const slotsRun: CronSlot[] = [];
+
+  const shouldRun = (slot: CronSlot, hasConfig: boolean): boolean => {
+    if (!hasConfig) return false;
+    if (!slotsFilter) return true;
+    return slotsFilter.has(slot);
+  };
+
+  if (slotsFilter) {
+    const requested = options!.slots!;
+    const missing = requested.filter((s) => {
+      if (s === "reddit") return !redditConfig;
+      if (s === "redditSysco") return !redditSyscoConfig;
+      return !quoraConfig;
+    });
+    if (missing.length === requested.length) {
+      return {
+        ok: false,
+        status: 400,
+        data: {
+          error: `No job template in env for selected slot(s): ${missing.join(", ")}`,
+        },
+      };
+    }
   }
 
   const dryRun = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
@@ -106,10 +161,13 @@ export async function runRedditQuoraCron(): Promise<
   const existingJobs = existing.map((j) => ({ title: j.title, status: j.status }));
 
   const ensureJob = async (
+    slot: CronSlot,
     name: string,
     config: SproutGigsJobConfig,
     opts?: { broadKeywordMatch?: boolean }
   ) => {
+    if (!shouldRun(slot, true)) return;
+    slotsRun.push(slot);
     const titleLower = config.title.toLowerCase();
     const keyword = name.toLowerCase();
     const broad = opts?.broadKeywordMatch ?? false;
@@ -139,9 +197,9 @@ export async function runRedditQuoraCron(): Promise<
     }
   };
 
-  if (redditConfig) await ensureJob("Reddit", redditConfig);
-  if (redditSyscoConfig) await ensureJob("Reddit (Sysco/RD)", redditSyscoConfig);
-  if (quoraConfig) await ensureJob("Quora", quoraConfig, { broadKeywordMatch: true });
+  if (redditConfig) await ensureJob("reddit", "Reddit", redditConfig);
+  if (redditSyscoConfig) await ensureJob("redditSysco", "Reddit (Sysco/RD)", redditSyscoConfig);
+  if (quoraConfig) await ensureJob("quora", "Quora", quoraConfig, { broadKeywordMatch: true });
 
   let spendableUsd: number | null = null;
   try {
@@ -159,6 +217,7 @@ export async function runRedditQuoraCron(): Promise<
       redditSysco: !!redditSyscoConfig,
       quora: !!quoraConfig,
     },
+    slotsRun,
     redditEnvLength: process.env.REDDIT_JOB_JSON?.length ?? 0,
     redditAltEnvLength: process.env.REDDIT_JOB_CONFIG?.length ?? 0,
     redditSyscoEnvLength: redditSyscoRaw?.length ?? 0,
