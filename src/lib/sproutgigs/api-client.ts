@@ -111,10 +111,12 @@ export class SproutGigsApiClient implements ISproutGigsClient {
    * Previously we only checked running; pending jobs were invisible and launches failed or duplicated.
    */
   async jobsBlockingRelaunch(): Promise<SproutGigsActiveJob[]> {
-    const running = await this.getJobsByStatus("running");
-    const pending = await this.getJobsByStatus("pending_approval");
+    const statuses = ["running", "pending_approval", "pending_review", "paused"] as const;
     const byId = new Map<string, SproutGigsActiveJob>();
-    for (const j of [...running, ...pending]) byId.set(j.id, j);
+    for (const s of statuses) {
+      const jobs = await this.getJobsByStatus(s);
+      for (const j of jobs) byId.set(j.id, j);
+    }
     return Array.from(byId.values());
   }
 
@@ -175,15 +177,26 @@ export class SproutGigsApiClient implements ISproutGigsClient {
       body.excluded_countries = jobConfig.excluded_countries;
     }
 
-    const data = await this.request<{ ok?: boolean; url?: string; message?: string }>(
-      "/jobs/post-job.php",
-      { method: "POST", body }
-    );
+    const data = (await this.request<Record<string, unknown>>("/jobs/post-job.php", {
+      method: "POST",
+      body,
+    })) as Record<string, unknown>;
 
-    if (data.ok && data.url) {
-      const jobId = data.url.match(/Id=([a-f0-9]+)/i)?.[1] ?? data.url;
-      return { success: true, jobId, url: data.url };
+    const ok = data.ok === true;
+    const url = typeof data.url === "string" ? data.url : undefined;
+    const message = typeof data.message === "string" ? data.message : undefined;
+    const jobIdFromFields =
+      typeof data.job_id === "string"
+        ? data.job_id
+        : typeof data.id === "string"
+          ? data.id
+          : undefined;
+    const jobIdFromUrl = url?.match(/Id=([a-f0-9]+)/i)?.[1];
+    const jobId = jobIdFromUrl ?? jobIdFromFields;
+
+    if (ok && (url || jobId)) {
+      return { success: true, jobId: jobId ?? "posted", url: url ?? "" };
     }
-    return { success: false, error: data.message ?? "Post job failed" };
+    return { success: false, error: message ?? "Post job failed" };
   }
 }

@@ -26,6 +26,15 @@ export async function GET() {
   });
 }
 
+function coerceNumber(v: unknown, fallback: number): number {
+  if (typeof v === "number" && !Number.isNaN(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v);
+    if (!Number.isNaN(n)) return n;
+  }
+  return fallback;
+}
+
 function parseJobJson(name: string, raw: string | undefined): SproutGigsJobConfig | null {
   if (!raw?.trim()) return null;
   try {
@@ -38,14 +47,29 @@ function parseJobJson(name: string, raw: string | undefined): SproutGigsJobConfi
       category_id: typeof o.category_id === "string" ? o.category_id : "0501",
       instructions: Array.isArray(o.instructions) ? (o.instructions as string[]) : [String(o.description || "Complete the task.")],
       proofs: Array.isArray(o.proofs) ? (o.proofs as { type: string; description: string }[]) : [{ type: "screenshot", description: "Screenshot of completed task" }],
-      num_tasks: typeof o.num_tasks === "number" ? o.num_tasks : 25,
-      task_value: typeof o.task_value === "number" ? o.task_value : 0.10,
+      num_tasks: coerceNumber(o.num_tasks, 25),
+      task_value: coerceNumber(o.task_value, 0.1),
       excluded_countries: Array.isArray(o.excluded_countries) ? (o.excluded_countries as string[]) : undefined,
     };
   } catch {
     console.warn(`[reddit-quora] Invalid ${name} JSON`);
     return null;
   }
+}
+
+/** Avoid false "already running" when a short running title is a substring of the config title (e.g. "reddit"). */
+function titleMatchesConfig(runningTitleLower: string, configTitleLower: string): boolean {
+  if (runningTitleLower === configTitleLower) return true;
+  if (runningTitleLower.includes(configTitleLower)) return true;
+  const minLen = 12;
+  if (
+    runningTitleLower.length >= minLen &&
+    configTitleLower.length >= minLen &&
+    configTitleLower.includes(runningTitleLower)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export async function POST(request: Request) {
@@ -97,7 +121,7 @@ export async function POST(request: Request) {
     const keyword = name.toLowerCase();
     const broad = opts?.broadKeywordMatch ?? false;
     const isRunning = runningTitles.some((t) => {
-      if (t.includes(titleLower) || titleLower.includes(t)) return true;
+      if (titleMatchesConfig(t, titleLower)) return true;
       if (broad && t.includes(keyword)) return true;
       return false;
     });
@@ -109,11 +133,16 @@ export async function POST(request: Request) {
       results.push({ job: name, running: false, action: "dry_run" });
       return;
     }
-    const launch = await client.launchJob(config);
-    if (launch.success) {
-      results.push({ job: name, running: false, action: "launched", jobId: launch.jobId });
-    } else {
-      results.push({ job: name, running: false, action: "failed", error: launch.error });
+    try {
+      const launch = await client.launchJob(config);
+      if (launch.success) {
+        results.push({ job: name, running: false, action: "launched", jobId: launch.jobId });
+      } else {
+        results.push({ job: name, running: false, action: "failed", error: launch.error });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      results.push({ job: name, running: false, action: "failed", error: msg });
     }
   };
 
