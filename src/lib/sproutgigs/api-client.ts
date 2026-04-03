@@ -107,11 +107,11 @@ export class SproutGigsApiClient implements ISproutGigsClient {
   }
 
   /**
-   * Jobs that mean "do not post the same title again": running plus pending admin approval.
-   * Previously we only checked running; pending jobs were invisible and launches failed or duplicated.
+   * Jobs that mean "do not post the same title again".
+   * We do not include "paused": many accounts treat finished or stopped jobs as paused, and we still want the cron to post a fresh job after that.
    */
   async jobsBlockingRelaunch(): Promise<SproutGigsActiveJob[]> {
-    const statuses = ["running", "pending_approval", "pending_review", "paused"] as const;
+    const statuses = ["running", "pending_approval", "pending_review"] as const;
     const byId = new Map<string, SproutGigsActiveJob>();
     for (const s of statuses) {
       const jobs = await this.getJobsByStatus(s);
