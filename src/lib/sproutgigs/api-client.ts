@@ -115,7 +115,7 @@ export class SproutGigsApiClient implements ISproutGigsClient {
     const pending = await this.getJobsByStatus("pending_approval");
     const byId = new Map<string, SproutGigsActiveJob>();
     for (const j of [...running, ...pending]) byId.set(j.id, j);
-    return [...byId.values()];
+    return Array.from(byId.values());
   }
 
   async checkDraftsOrPending(): Promise<SproutGigsActiveJob[]> {
