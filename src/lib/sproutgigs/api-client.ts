@@ -79,19 +79,43 @@ export class SproutGigsApiClient implements ISproutGigsClient {
   }
 
   async checkCurrentActiveJobs(): Promise<SproutGigsActiveJob[]> {
-    const data = await this.request<{ jobs?: { id: string; title: string; status: string; created_at?: string; num_tasks?: number; tasks_done?: number }[] }>(
-      "/jobs/get-jobs.php",
-      { query: { status: "running" } }
-    );
-    const jobs = data.jobs ?? [];
-    return jobs.map((j) => ({
-      id: j.id,
-      title: j.title,
-      status: j.status,
-      createdAt: j.created_at,
-      num_tasks: j.num_tasks,
-      tasks_done: j.tasks_done,
-    }));
+    return this.getJobsByStatus("running");
+  }
+
+  /** Paginated get-jobs (page 1 only misses jobs when you have many). */
+  private async getJobsByStatus(status: string, maxPages = 10): Promise<SproutGigsActiveJob[]> {
+    const out: SproutGigsActiveJob[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const data = await this.request<{ jobs?: { id: string; title: string; status: string; created_at?: string; num_tasks?: number; tasks_done?: number }[] }>(
+        "/jobs/get-jobs.php",
+        { query: { status, page: String(page) } }
+      );
+      const jobs = data.jobs ?? [];
+      if (jobs.length === 0) break;
+      for (const j of jobs) {
+        out.push({
+          id: j.id,
+          title: j.title,
+          status: j.status,
+          createdAt: j.created_at,
+          num_tasks: j.num_tasks,
+          tasks_done: j.tasks_done,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Jobs that mean "do not post the same title again": running plus pending admin approval.
+   * Previously we only checked running; pending jobs were invisible and launches failed or duplicated.
+   */
+  async jobsBlockingRelaunch(): Promise<SproutGigsActiveJob[]> {
+    const running = await this.getJobsByStatus("running");
+    const pending = await this.getJobsByStatus("pending_approval");
+    const byId = new Map<string, SproutGigsActiveJob>();
+    for (const j of [...running, ...pending]) byId.set(j.id, j);
+    return [...byId.values()];
   }
 
   async checkDraftsOrPending(): Promise<SproutGigsActiveJob[]> {

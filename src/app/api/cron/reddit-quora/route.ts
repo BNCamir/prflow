@@ -81,11 +81,11 @@ export async function POST(request: Request) {
   const dryRun = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
   const client = new SproutGigsApiClient({ user_id: userId, api_secret: apiSecret });
 
-  const running = await client.checkCurrentActiveJobs();
-  const runningTitles = running.map((j) => j.title.toLowerCase());
+  const existing = await client.jobsBlockingRelaunch();
+  const runningTitles = existing.map((j) => j.title.toLowerCase());
 
   const results: { job: string; running: boolean; action: string; jobId?: string; error?: string }[] = [];
-  const runningJobTitles = running.map((j) => j.title);
+  const existingJobs = existing.map((j) => ({ title: j.title, status: j.status }));
 
   /** broadKeywordMatch: Quora uses "quora" in title (e.g. "Quora: Comment"). Reddit jobs use title-only so two Reddit posts do not collide. */
   const ensureJob = async (
@@ -121,6 +121,13 @@ export async function POST(request: Request) {
   if (redditSyscoConfig) await ensureJob("Reddit (Sysco/RD)", redditSyscoConfig);
   if (quoraConfig) await ensureJob("Quora", quoraConfig, { broadKeywordMatch: true });
 
+  let spendableUsd: number | null = null;
+  try {
+    spendableUsd = await client.getSpendableBalance();
+  } catch {
+    spendableUsd = null;
+  }
+
   return NextResponse.json({
     ok: true,
     dryRun,
@@ -133,6 +140,7 @@ export async function POST(request: Request) {
     redditEnvLength: process.env.REDDIT_JOB_JSON?.length ?? 0,
     redditAltEnvLength: process.env.REDDIT_JOB_CONFIG?.length ?? 0,
     redditSyscoEnvLength: redditSyscoRaw?.length ?? 0,
-    runningJobTitles,
+    existingJobs,
+    spendableUsd,
   });
 }
