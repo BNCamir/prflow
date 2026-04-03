@@ -32,7 +32,7 @@ export function parseJobJson(name: string, raw: string | undefined): SproutGigsJ
   }
 }
 
-function titleMatchesConfig(runningTitleLower: string, configTitleLower: string): boolean {
+export function titleMatchesConfig(runningTitleLower: string, configTitleLower: string): boolean {
   if (runningTitleLower === configTitleLower) return true;
   if (runningTitleLower.includes(configTitleLower)) return true;
   const minLen = 12;

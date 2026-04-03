@@ -83,7 +83,7 @@ export class SproutGigsApiClient implements ISproutGigsClient {
   }
 
   /** Paginated get-jobs (page 1 only misses jobs when you have many). */
-  private async getJobsByStatus(status: string, maxPages = 10): Promise<SproutGigsActiveJob[]> {
+  async getJobsByStatus(status: string, maxPages = 10): Promise<SproutGigsActiveJob[]> {
     const out: SproutGigsActiveJob[] = [];
     for (let page = 1; page <= maxPages; page++) {
       const data = await this.request<{ jobs?: { id: string; title: string; status: string; created_at?: string; num_tasks?: number; tasks_done?: number }[] }>(
