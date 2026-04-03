@@ -56,7 +56,11 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/runs/now", { method: "POST" });
       const json = await res.json();
-      if (res.ok && json.runId) {
+      if (res.ok && json.mode === "env_cron") {
+        await fetchDashboard();
+        return;
+      }
+      if (res.ok && json.runId && json.mode === "legacy") {
         await fetch("/api/runs/" + json.runId + "/execute", { method: "POST" });
         await fetchDashboard();
       }

@@ -2,10 +2,31 @@ import { NextResponse } from "next/server";
 import { requireDb } from "@/lib/db";
 import { getOrCreateConfig } from "@/lib/config-service";
 import { logActivity } from "@/lib/activity-log";
+import { runRedditQuoraCron } from "@/lib/cron-reddit-quora-engine";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST() {
+  const cronResult = await runRedditQuoraCron();
+  if (cronResult.ok) {
+    try {
+      await logActivity({
+        action: "env_cron_from_dashboard",
+        details: {
+          results: cronResult.data.results,
+          spendableUsd: cronResult.data.spendableUsd,
+          configLoaded: cronResult.data.configLoaded,
+        },
+      });
+    } catch {
+      /* DB optional for logging */
+    }
+    return NextResponse.json({
+      mode: "env_cron",
+      ...cronResult.data,
+    });
+  }
+
   try {
     const sql = requireDb();
     const config = await getOrCreateConfig();
@@ -24,6 +45,7 @@ export async function POST() {
       });
       return NextResponse.json({
         ok: true,
+        mode: "legacy",
         runId,
         message: "Run already exists for today. Use execute to process.",
       });
@@ -49,6 +71,7 @@ export async function POST() {
 
     return NextResponse.json({
       ok: true,
+      mode: "legacy",
       runId,
       runDate,
       status: run.status,
